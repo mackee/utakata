@@ -39,9 +39,9 @@ class SignalDispatcher(object):
 
     :param handler: turple (handler_name::string, handler_param::kwargs)
     """
-    handler_name = handler[0]
+    handler_class = handler[0]
     kwargs = handler[1]
-    return globals()[handler_name](**kwargs)
+    return handler_class(**kwargs)
 
 
 
