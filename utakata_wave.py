@@ -42,4 +42,14 @@ class CutTopSilenceWavedataHandler(BaseProcessHandler):
     self.data = self.data[head:]
 
 
+class NormalizationWavedataHandler(BaseProcessHandler):
+  """Wave数列に対するハンドラ - 正規化"""
+  def __init__(self, prevHandler):
+    """constructor at NormalizationWavedataHandler."""
+    BaseProcessHandler.__init__(self, prevHandler)
+    self.normalization()
+
+  def normalization(self):
+    self.data = self.data / sp.absolute(self.data).max()
+
 
