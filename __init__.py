@@ -4,6 +4,7 @@ __all__ = ["utakata", "utakata_import", "utakata_wave"]
 from utakata import SignalDispatcher
 from utakata_import import *
 from utakata_wave import *
+from utakata_time_freq import *
 
 import time
 def stopwatch(self, wrapped):

@@ -41,7 +41,7 @@ class PlotWavedataHandler(BaseProcessHandler):
   def plot(self):
     try:
       self.figure += 1
-    except NameError:
+    except AttributeError:
       self.figure = 1
     plt.figure(self.figure)
     plt.plot(self.data)
@@ -70,11 +70,11 @@ class NormalizationWavedataHandler(BaseProcessHandler):
   def normalization(self):
     self.data = self.data / sp.absolute(self.data).max()
 
+@stopwatch
 class GaborwaveletWavedataHandler(BaseProcessHandler):
   """Wave数列に対するハンドラ - ガボールウェーブレット変換"""
-  @stopwatch
   def __init__(self, prevHandler):
-    """constructor at NormalizationWavedataHandler."""
+    """constructor at GaborwaveletWavedataHandler."""
     BaseProcessHandler.__init__(self, prevHandler)
     self.generateGaborMotherWavelet()
     self.convertToTimeAndFrequencyData(85)

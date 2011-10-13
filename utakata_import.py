@@ -14,6 +14,7 @@ class ImportWavedataHandler:
     """
     self.filename = filename
     self.data = self.original = self.importWave()
+    self.duration = sp.size(self.data)*11/44100
 
   def importWave(self):
     """Wave file to ndarray"""
