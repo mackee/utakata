@@ -39,6 +39,11 @@ class PlotWavedataHandler(BaseProcessHandler):
     self.plot()
 
   def plot(self):
+    try:
+      self.figure += 1
+    except NameError:
+      self.figure = 1
+    plt.figure(self.figure)
     plt.plot(self.data)
 
 
