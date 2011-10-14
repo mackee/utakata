@@ -89,7 +89,17 @@ class NormalizeTimeFreqDataHandler(BaseProcessHandler):
     self.normalize()
 
   def normalize(self):
-    self.data = self.data / self.data.max()
+    self.time_freq = self.time_freq / self.time_freq.max()
+
+
+class LogTimeFreqDataHandler(BaseProcessHandler):
+  """時間周波数データに対するハンドラ - 対数を取る"""
+  def __init__(self, prevHandler):
+    BaseProcessHandler.__init__(self, prevHandler)
+    self.log()
+
+  def log(self):
+    self.time_freq = sp.log(self.time_freq)
 
 
   
