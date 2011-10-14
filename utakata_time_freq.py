@@ -1,8 +1,8 @@
 # -*- coding:utf8 -*-
 import scipy as sp
 import matplotlib.pyplot as plt
-#import scipy.io as sio
-#import scipy.linalg as slng
+import scipy.io as sio
+import scipy.linalg as slng
 
 import time
 def stopwatch(wrapped):
@@ -49,6 +49,27 @@ class PlotTimeFreqDataHandler(BaseProcessHandler):
     plt.ylabel('key')
     plt.xlabel('time[sec]')
     plt.imshow(source, aspect='auto', origin='lower', extent=extent)
+
+
+class MultipleMatfileAndTimeFreqDataHandler(BaseProcessHandler):
+  """時間周波数データに対するハンドラ - MATLABファイルの行列との積をとる"""
+  def __init__(self, prevHandler, matrix_file, pinv=False, maximum=None):
+    BaseProcessHandler.__init__(self, prevHandler)
+    self.importMatrixFile(matrix_file)
+    if(pinv):
+      self.load_matrix = slng.pinv(self.load_matrix)
+    self.multiple(maximum)
+
+  def importMatrixFile(self, matrix_file):
+    self.load_matrix = sio.loadmat(matrix_file)[matrix_file]
+
+  def multiple(self, maximum=None):
+    self.time_freq = sp.dot(self.load_matrix, self.time_freq)
+    if(maximum != None):
+      self.time_freq = sp.maximum(self.time_freq, maximum)
+
+
+
 
 
 
