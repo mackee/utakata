@@ -82,6 +82,16 @@ class BinarizeTimeFreqDataHandler(BaseProcessHandler):
     self.binarized_data = data
 
 
+class NormalizeTimeFreqDataHandler(BaseProcessHandler):
+  """時間周波数データに対するハンドラ - 正規化をする"""
+  def __init__(self, prevHandler):
+    BaseProcessHandler.__init__(self, prevHandler)
+    self.normalize()
+
+  def normalize(self):
+    self.data = self.data / self.data.max()
+
+
   
 
 
