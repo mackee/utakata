@@ -33,21 +33,22 @@ class BaseProcessHandler:
 
 class PlotTimeFreqDataHandler(BaseProcessHandler):
   """時間周波数データに対するハンドラ - グラフにプロットする"""
-  def __init__(self, prevHandler):
+  def __init__(self, prevHandler, source_name='time_freq'):
     BaseProcessHandler.__init__(self, prevHandler)
-    self.plot()
+    source = getattr(self, source_name)
+    self.plot(source)
 
-  def plot(self):
+  def plot(self, source):
     try:
       self.figure += 1
     except AttributeError:
       self.figure = 1
 
-    extent = [0, self.duration, 0, sp.shape(self.time_freq)[0]]
+    extent = [0, self.duration, 0, sp.shape(source)[0]]
     plt.figure(self.figure)
     plt.ylabel('key')
-    plt.ylabel('time[sec]')
-    plt.imshow(self.time_freq, aspect='auto', origin='lower', extent=extent)
+    plt.xlabel('time[sec]')
+    plt.imshow(source, aspect='auto', origin='lower', extent=extent)
 
 
 

@@ -14,12 +14,13 @@ class ImportWavedataHandler:
     """
     self.filename = filename
     self.data = self.original = self.importWave()
-    self.duration = sp.size(self.data)*11/44100
 
   def importWave(self):
     """Wave file to ndarray"""
     wf = wave.open(self.filename, 'rb')
     waveframes = wf.readframes(wf.getnframes())
+    self.framerate = wf.getframerate()
+    self.duration = wf.getnframes() / self.framerate
     return sp.fromstring(waveframes, sp.int16)
 
 
