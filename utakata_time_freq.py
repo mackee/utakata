@@ -69,7 +69,20 @@ class MultipleMatfileAndTimeFreqDataHandler(BaseProcessHandler):
       self.time_freq = sp.maximum(self.time_freq, maximum)
 
 
+class BinarizeTimeFreqDataHandler(BaseProcessHandler):
+  """時間周波数データに対するハンドラ - 二値化をする"""
+  def __init__(self, prevHandler, threshold, target_data='time_freq'):
+    BaseProcessHandler.__init__(self, prevHandler)
+    self.binarize(getattr(self, target_data), threshold)
 
+  def binarize(self, target_data, threshold):
+    data = sp.maximum(target_data, threshold)
+    sp.putmask(data, data>threshold, 1.)
+    sp.putmask(data, data<=threshold, 0.)
+    self.binarized_data = data
+
+
+  
 
 
 
