@@ -70,6 +70,18 @@ class NormalizationWavedataHandler(BaseProcessHandler):
   def normalization(self):
     self.data = self.data / sp.absolute(self.data).max()
 
+
+class WithoutToBiasWavedataHandler(BaseProcessHandler):
+  """Wave数列に対するハンドラ - バイアスをなしにする"""
+  def __init__(self, prevHandler):
+    """constructor at WithoutToBiasWavedataHandler."""
+    BaseProcessHandler.__init__(self, prevHandler)
+    self.withoutToBias()
+
+  def withoutToBias(self):
+    self.data = self.data - sp.sum(self.data[0:100])/100
+
+
 @stopwatch
 class GaborwaveletWavedataHandler(BaseProcessHandler):
   """Wave数列に対するハンドラ - ガボールウェーブレット変換"""
