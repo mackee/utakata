@@ -1,5 +1,7 @@
 # -*- coding:utf8 -*-
 import scipy as sp
+#import scipy.fftpack as sfft
+import numpy as np
 import matplotlib.pyplot as plt
 #import scipy.io as sio
 #import scipy.linalg as slng
@@ -33,18 +35,24 @@ class BaseProcessHandler:
 
 class PlotWavedataHandler(BaseProcessHandler):
   """Wave数列に対するハンドラ - 現在のWavedataをグラフにプロットする"""
-  def __init__(self, prevHandler):
+  def __init__(self, prevHandler, source='data', hold=None):
     """constructor at ImportWaveHandler."""
     BaseProcessHandler.__init__(self, prevHandler)
-    self.plot()
+    if(hold != None):
+      self.plot(getattr(self, source), getattr(self, hold))
+    else:
+      self.plot(getattr(self, source), None)
 
-  def plot(self):
+  def plot(self, source, hold):
     try:
       self.figure += 1
     except AttributeError:
       self.figure = 1
     plt.figure(self.figure)
-    plt.plot(self.data)
+    if(hold == None):
+      plt.plot(source)
+    else:
+      plt.plot(hold, source)
 
 
 class CutTopSilenceWavedataHandler(BaseProcessHandler):
@@ -147,5 +155,76 @@ class GaborwaveletWavedataHandler(BaseProcessHandler):
     
     self.time_freq = scale
 
+@stopwatch
+class EstimateTempoWavedataHandler(BaseProcessHandler):
+  """Wave数列に対するハンドラ - テンポを推定する"""
+  def __init__( self, prevHandler, target_name='wavecorr',
+                sttempo=60, endtempo=300, tempo_step=0.5):
+    """constructor at ImportWaveHandler."""
+    BaseProcessHandler.__init__(self, prevHandler)
+    self.estimateTempo( getattr(self, target_name),
+                        sttempo, endtempo, tempo_step)
 
+  def estimateTempo(self, target, sttempo, endtempo, tempo_step):
+    t = sp.arange(target.size)
+    self.tempolist = sp.array([])
+    for tempo in sp.arange(sttempo, endtempo, tempo_step):
+      f = tempo / 60.
+      t = sp.arange(0, 1/f, 1./self.framerate)
+      scale = sp.cos(2*sp.pi*f*t)
+      result = np.correlate(sp.absolute(scale),
+                            sp.absolute(target), 'valid', True).max()
+      result = result
+      self.tempolist = sp.append(self.tempolist, result)
+    self.tempos = sp.arange(sttempo, endtempo, tempo_step)
+    for i in range(1, self.tempolist.size):
+      if(self.tempolist[i] > self.tempolist[i-1]
+          and self.tempolist[i] > self.tempolist[i+1]):
+        self.wavetempo = self.tempos[i]
+        break
+    print self.wavetempo
+
+
+@stopwatch
+class CalcCorrWavedataHandler(BaseProcessHandler):
+  """Wave数列に対するハンドラ - 自己/相互相関を求める"""
+  def __init__( self, prevHandler,
+                x_name='data', y_name=None, set_name='wavecorr',
+                corr_duration=44100*5, corr_num=15000, corr_offset=0 ):
+    """constructor at ImportWaveHandler."""
+    BaseProcessHandler.__init__(self, prevHandler)
+    
+    self.corr_duration = corr_duration
+    self.corr_num = corr_num
+    self.corr_offset = corr_offset
+
+    if(y_name != None):
+      self.calcCorr(getattr(self, x_name), getattr(self, y_name), set_name=set_name)
+    else:
+      self.calcCorr(getattr(self, x_name), None, set_name=set_name)
+
+  def calcCorr(self, x, y, set_name):
+    x_data = x[self.corr_offset:self.corr_offset+self.corr_duration]
+    if(y == None):
+      y_data = x[self.corr_offset:self.corr_offset+self.corr_duration+self.corr_num]
+      #corr = self.correlate(x, x, self.corr_num,
+      #                      self.corr_duration, self.corr_offset)
+    else:
+      y_data = y[self.corr_offset:self.corr_offset+self.corr_duration+self.corr_num]
+      #corr = self.correlate(x, y, self.corr_num,
+      #                      self.corr_duration, self.corr_offset)
+    corr = np.correlate(x_data, y_data, 'valid')
+    setattr(self, set_name, corr)
+
+  def correlate(self, x, y, corr_num, corr_duration, corr_offset):
+    offset = corr_offset
+    cduration = corr_duration
+    x_data = x[offset:offset+cduration]
+    
+    corr_data = sp.array([])
+    for i in range(offset, offset+corr_num):
+      y_data = y[i:i+cduration]
+      corr_data = sp.append(corr_data, sp.dot(x_data, y_data)/y_data.size)
+    
+    return corr_data
 
