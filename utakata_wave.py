@@ -1,5 +1,6 @@
 # -*- coding:utf8 -*-
 import scipy as sp
+import scipy.signal as ssig
 #import scipy.fftpack as sfft
 import numpy as np
 import matplotlib.pyplot as plt
@@ -66,6 +67,7 @@ class CutTopSilenceWavedataHandler(BaseProcessHandler):
     average = sp.sum(sp.absolute(self.data))/sp.size(self.data)
     head = sp.nonzero(sp.absolute(self.data)>average)[0][5]
     self.data = self.data[head:]
+    self.duration_list = self.duration_list[head:]
 
 
 class NormalizationWavedataHandler(BaseProcessHandler):
@@ -166,23 +168,28 @@ class EstimateTempoWavedataHandler(BaseProcessHandler):
                         sttempo, endtempo, tempo_step)
 
   def estimateTempo(self, target, sttempo, endtempo, tempo_step):
-    t = sp.arange(target.size)
     self.tempolist = sp.array([])
+    t = sp.arange(0, 60/sttempo, 1./self.fs)
     for tempo in sp.arange(sttempo, endtempo, tempo_step):
       f = tempo / 60.
-      t = sp.arange(0, 1/f, 1./self.framerate)
       scale = sp.cos(2*sp.pi*f*t)
-      result = np.correlate(sp.absolute(scale),
-                            sp.absolute(target), 'valid', True).max()
-      result = result
+      result = np.correlate(scale, target, 'valid')
+      result = sp.average(sp.absolute(result))
       self.tempolist = sp.append(self.tempolist, result)
+    self.tempolist = sp.absolute(ssig.detrend(sp.log(self.tempolist)))
     self.tempos = sp.arange(sttempo, endtempo, tempo_step)
+    '''
     for i in range(1, self.tempolist.size):
       if(self.tempolist[i] > self.tempolist[i-1]
           and self.tempolist[i] > self.tempolist[i+1]):
         self.wavetempo = self.tempos[i]
         break
-    print self.wavetempo
+    '''
+    self.wavetempo = self.tempos[sp.argmax(self.tempolist)]
+    try:
+      print self.wavetempo
+    except AttributeError:
+      pass
 
 
 @stopwatch
@@ -190,7 +197,7 @@ class CalcCorrWavedataHandler(BaseProcessHandler):
   """Wave数列に対するハンドラ - 自己/相互相関を求める"""
   def __init__( self, prevHandler,
                 x_name='data', y_name=None, set_name='wavecorr',
-                corr_duration=44100*5, corr_num=15000, corr_offset=0 ):
+                corr_duration=8810*3, corr_num=15000, corr_offset=0 ):
     """constructor at ImportWaveHandler."""
     BaseProcessHandler.__init__(self, prevHandler)
     
@@ -213,7 +220,8 @@ class CalcCorrWavedataHandler(BaseProcessHandler):
       y_data = y[self.corr_offset:self.corr_offset+self.corr_duration+self.corr_num]
       #corr = self.correlate(x, y, self.corr_num,
       #                      self.corr_duration, self.corr_offset)
-    corr = np.correlate(x_data, y_data, 'valid')
+    corr = np.correlate(x_data, y_data, 'same')
+    corr = ssig.detrend(corr)
     setattr(self, set_name, corr)
 
   def correlate(self, x, y, corr_num, corr_duration, corr_offset):
