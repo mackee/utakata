@@ -107,6 +107,7 @@ class GaborwaveletWavedataHandler(BaseProcessHandler):
     NL = 48.
     NU = 39.
     fs = float(self.fs)
+    self.sample_duration = 10.
     #asigma = 0.3
     limit_t = 0.1
     #zurashi = 1.
@@ -127,7 +128,7 @@ class GaborwaveletWavedataHandler(BaseProcessHandler):
     self.gabor = gabor*sp.exp(exps)
 
   def convertToTimeAndFrequencyData(self, grain):
-    d = 10.
+    d = self.sample_duration
     length = max(sp.shape(sp.arange(1, sp.size(self.data) - sp.size(self.gabor[1]), d)))
     scale = sp.zeros((88, length))
     datacapsule = sp.zeros((sp.shape(self.gabor)[1], grain))
