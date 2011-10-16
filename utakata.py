@@ -2,6 +2,19 @@
 
 #import scipy as sp
 import matplotlib.pyplot as plt
+import time
+
+def stopwatch(wrapped):
+  """計時デコレータ"""
+  def _wrapper(*args, **kwargs):
+    tic = time.time()
+    result = wrapped(*args, **kwargs)
+    toc = time.time()
+    doc = str(wrapped.__doc__).split("\n")[0]
+    print("[%s] %f[sec]" % (doc, toc - tic))
+    return result
+  return _wrapper
+
 
 class SignalDispatcher(object):
   """信号処理をまとめて行うバッチ実行クラス"""
@@ -21,6 +34,7 @@ class SignalDispatcher(object):
     """入力ハンドラを利用して信号処理する対象の数列データを入力"""
     self.instance = self.__process(self.input_handler)
   
+  @stopwatch
   def processHandler(self):
     """信号処理ハンドラを逐次実行"""
     for handler in self.process_handler_list:

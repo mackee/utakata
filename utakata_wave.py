@@ -15,7 +15,7 @@ def stopwatch(wrapped):
     result = wrapped(*args, **kwargs)
     toc = time.time()
     doc = str(wrapped.__doc__).split("\n")[0]
-    print("[%s] %f[sec]" % (doc, toc - tic))
+    print("[%s] %fsec" % (doc, toc - tic))
     return result
   return _wrapper
 
@@ -106,7 +106,7 @@ class GaborwaveletWavedataHandler(BaseProcessHandler):
     sigma = 6.
     NL = 48.
     NU = 39.
-    fs = 44100.
+    fs = float(self.fs)
     #asigma = 0.3
     limit_t = 0.1
     #zurashi = 1.
@@ -130,7 +130,7 @@ class GaborwaveletWavedataHandler(BaseProcessHandler):
     d = 10.
     length = max(sp.shape(sp.arange(1, sp.size(self.data) - sp.size(self.gabor[1]), d)))
     scale = sp.zeros((88, length))
-    datacapsule = sp.zeros((8821, grain))
+    datacapsule = sp.zeros((sp.shape(self.gabor)[1], grain))
 
     # 行列を束ねて処理
     #   個々にgabor*datadataを計算すると時間がかかる
@@ -168,6 +168,7 @@ class EstimateTempoWavedataHandler(BaseProcessHandler):
                         sttempo, endtempo, tempo_step)
 
   def estimateTempo(self, target, sttempo, endtempo, tempo_step):
+    """Estimate Tempo."""
     self.tempolist = sp.array([])
     t = sp.arange(0, 60/sttempo, 1./self.fs)
     for tempo in sp.arange(sttempo, endtempo, tempo_step):
@@ -178,16 +179,9 @@ class EstimateTempoWavedataHandler(BaseProcessHandler):
       self.tempolist = sp.append(self.tempolist, result)
     self.tempolist = sp.absolute(ssig.detrend(sp.log(self.tempolist)))
     self.tempos = sp.arange(sttempo, endtempo, tempo_step)
-    '''
-    for i in range(1, self.tempolist.size):
-      if(self.tempolist[i] > self.tempolist[i-1]
-          and self.tempolist[i] > self.tempolist[i+1]):
-        self.wavetempo = self.tempos[i]
-        break
-    '''
     self.wavetempo = self.tempos[sp.argmax(self.tempolist)]
     try:
-      print self.wavetempo
+      print 'tempo:',  self.wavetempo, 'BPM'
     except AttributeError:
       pass
 
@@ -209,8 +203,9 @@ class CalcCorrWavedataHandler(BaseProcessHandler):
       self.calcCorr(getattr(self, x_name), getattr(self, y_name), set_name=set_name)
     else:
       self.calcCorr(getattr(self, x_name), None, set_name=set_name)
-
+  
   def calcCorr(self, x, y, set_name):
+    """ calculate correlation."""
     x_data = x[self.corr_offset:self.corr_offset+self.corr_duration]
     if(y == None):
       y_data = x[self.corr_offset:self.corr_offset+self.corr_duration+self.corr_num]
