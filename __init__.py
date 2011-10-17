@@ -5,6 +5,7 @@ from utakata import SignalDispatcher
 from utakata_import import *
 from utakata_wave import *
 from utakata_time_freq import *
+from utakata_util import *
 
 import time
 def stopwatch(self, wrapped):

@@ -101,8 +101,8 @@ class LogTimeFreqDataHandler(BaseProcessHandler):
   def log(self):
     self.time_freq = sp.log(self.time_freq)
 
-class ScanSoundPointTimeFreqDataHandler(BaseProcessHandler):
-  """時間周波数データに対するハンドラ - 音が鳴っている箇所をスキャンする"""
+class CutOffNoiseTimeFreqDataHandler(BaseProcessHandler):
+  """時間周波数データに対するハンドラ - テンポ情報をもとにノイズ除去"""
   def __init__(self, prevHandler, minnotel=1./4.):
     BaseProcessHandler.__init__(self, prevHandler)
     self.scanSound(minnotel)
@@ -120,21 +120,27 @@ class ScanSoundPointTimeFreqDataHandler(BaseProcessHandler):
       ones_keys = sp.where(diffed == 1)[0]
       minus_keys = sp.where(diffed == -1)[0]
       
-      if(sp.size(ones_keys) < sp.size(minus_keys)):
-        new_line = self.noiseOff(
-            (0, minus_keys[0]), noise_length, new_line)
-        minus_keys = sp.delete(minus_keys, 0)
+      if(ones_keys.size != 0 or minus_keys.size != 0):
+        if(ones_keys[0] > minus_keys[0]):
+          new_line = self.cutNoise(
+              (0, minus_keys[0]), noise_length, new_line)
+          minus_keys = sp.delete(minus_keys, 0)
 
-      for j in range(sp.size(ones_keys)):
-        new_line = self.shaping(
-            (ones_keys[j], minus_keys[j]), noise_length, new_line)
+        if(ones_keys[-1] > minus_keys[-1]):
+          new_line = self.cutNoise(
+              (ones_keys[-1], new_line.size-1), noise_length, new_line)
+          ones_keys = sp.delete(ones_keys, -1)
 
-      antinoised[i, :] = new_line
+        for j in range(sp.size(ones_keys)):
+          new_line = self.cutNoise(
+              (ones_keys[j], minus_keys[j]), noise_length, new_line)
+
+        antinoised[i, :] = new_line
 
     self.antinoised = antinoised
 
 
-  def shaping(self, keys, noise_length, line):
+  def cutNoise(self, keys, noise_length, line):
     if(keys[1] - keys[0] < noise_length):
       array_ranges = sp.arange(keys[0], keys[1]+1)
       line[array_ranges] = sp.zeros_like(array_ranges)
@@ -143,5 +149,12 @@ class ScanSoundPointTimeFreqDataHandler(BaseProcessHandler):
     return line
 
 
+class GenerateMMLTimeFreqDataHandler(BaseProcessHandler):
+  """時間周波数データに対するハンドラ - MMLデータを生成"""
+  def __init__(self, prevHandler, minnotel=1./4.):
+    BaseProcessHandler.__init__(self, prevHandler)
+    self.genMML()
 
+  def genMML(self):
+    pass
 
