@@ -40,7 +40,7 @@ class ImportWavedataHandler:
     if(self.fs == None):
       self.fs = self.framerate
     else:
-      data = self.resample(data, self.fs*self.duration)
+      data = self.resample(data, data.size*(self.fs/self.framerate))
     self.duration_list = sp.arange(0, self.duration, 1./self.fs)
     data = ssig.detrend(data)
     return data
