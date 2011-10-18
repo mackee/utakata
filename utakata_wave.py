@@ -68,6 +68,8 @@ class CutTopSilenceWavedataHandler(BaseProcessHandler):
     head = sp.nonzero(sp.absolute(self.data)>average)[0][5]
     self.data = self.data[head:]
     self.duration_list = self.duration_list[head:]
+    self.duration -= self.duration_list[0]
+    print self.duration_list[0], self.duration
 
 
 class NormalizationWavedataHandler(BaseProcessHandler):
@@ -104,8 +106,8 @@ class GaborwaveletWavedataHandler(BaseProcessHandler):
   def generateGaborMotherWavelet(self):
     pitch = 440.0
     sigma = 6.
-    NL = 48.
-    NU = 39.
+    NL = 48
+    NU = 39
     fs = float(self.fs)
     self.sample_duration = 10.
     #asigma = 0.3
@@ -113,8 +115,8 @@ class GaborwaveletWavedataHandler(BaseProcessHandler):
     #zurashi = 1.
 
     #NS = NL + NU + 1
-    f_t = sp.arange(-NL, NU+1)[:, sp.newaxis]
-    f = pitch * sp.power(2, f_t/11.)
+    f = sp.array([2**(i/12.) for i in range(NL+NU+1)]) * pitch*2**(-NL/12.)
+    f = f[:, sp.newaxis]
     sigmao = sigma*10**(-3)*sp.sqrt(fs/f)
     t = sp.arange(-limit_t, limit_t+1/fs, 1/fs)
 
@@ -152,8 +154,11 @@ class GaborwaveletWavedataHandler(BaseProcessHandler):
         datacapsule[:, capsule_pointer] = datadata
         capsule_pointer += 1
 
-      scale[:, m:m+grain] = sp.absolute(
-          sp.dot(self.gabor,datacapsule[:, :capsule_pointer]))
+      try:
+        scale[:, m:m+grain] = sp.absolute(
+            sp.dot(self.gabor,datacapsule[:, :capsule_pointer]))
+      except ValueError:
+        pass
       m += grain
     
     self.time_freq = scale
