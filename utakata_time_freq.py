@@ -84,13 +84,32 @@ class BinarizeTimeFreqDataHandler(BaseProcessHandler):
 
 class NormalizeTimeFreqDataHandler(BaseProcessHandler):
   """時間周波数データに対するハンドラ - 正規化をする"""
-  def __init__(self, prevHandler):
+  def __init__(
+      self, prevHandler, target='time_freq',
+      set_name='time_freq', window=None):
     BaseProcessHandler.__init__(self, prevHandler)
-    self.normalize()
+    setattr(
+        self, set_name,
+        self.normalize(getattr(self, target), window))
 
-  def normalize(self):
-    self.time_freq = self.time_freq / self.time_freq.max()
-
+  def normalize(self, target,  window):
+    if(window == None):
+      return self.time_freq / self.time_freq.max()
+    
+    else:
+      if(window <= 1):
+        fs = sp.shape(target)[1] / self.duration
+        window_data = fs * window
+      else:
+        window_data = window
+      
+      normalized = sp.copy(target)
+      for i in range(0, sp.shape(normalized)[1], int(window_data)):
+        max_value = normalized[:, i:i+window_data].max()
+        normalized[:, i:i+window_data] /= max_value
+      
+      return normalized
+ 
 
 class LogTimeFreqDataHandler(BaseProcessHandler):
   """時間周波数データに対するハンドラ - 対数を取る"""
