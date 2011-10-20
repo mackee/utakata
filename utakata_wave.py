@@ -56,20 +56,20 @@ class PlotWavedataHandler(BaseProcessHandler):
       plt.plot(hold, source)
 
 
-class CutTopSilenceWavedataHandler(BaseProcessHandler):
-  """Wave数列に対するハンドラ - 先頭の無音部分をカット"""
+class CutTopAndBottomSilenceWavedataHandler(BaseProcessHandler):
+  """Wave数列に対するハンドラ - 先頭と終端の無音部分をカット"""
   def __init__(self, prevHandler):
-    """constructor at CutTopSilenceWavedataHandler."""
+    """constructor at CutTopAndBottomSilenceWavedataHandler."""
     BaseProcessHandler.__init__(self, prevHandler)
-    self.cutTop()
+    self.cut()
 
-  def cutTop(self):
+  def cut(self):
     average = sp.sum(sp.absolute(self.data))/sp.size(self.data)
     head = sp.nonzero(sp.absolute(self.data)>average)[0][5]
-    self.data = self.data[head:]
-    self.duration_list = self.duration_list[head:]
-    self.duration -= self.duration_list[0]
-    print self.duration_list[0], self.duration
+    bottom = sp.nonzero(sp.absolute(self.data)>average)[0][-1]
+    self.data = self.data[head:bottom]
+    self.duration_list = self.duration_list[head:bottom]
+    self.duration = self.duration_list[-1] - self.duration_list[0]
 
 
 class NormalizationWavedataHandler(BaseProcessHandler):
@@ -108,7 +108,7 @@ class GaborwaveletWavedataHandler(BaseProcessHandler):
     sigma = 6.
     NL = 48
     NU = 39
-    fs = float(self.fs)
+    fs = float(self.fs) / 2
     self.sample_duration = 10.
     #asigma = 0.3
     limit_t = 0.1

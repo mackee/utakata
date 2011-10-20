@@ -35,12 +35,18 @@ class ImportWavedataHandler:
     wf = wave.open(self.filename, 'rb')
     waveframes = wf.readframes(wf.getnframes())
     self.framerate = wf.getframerate()
-    self.duration = wf.getnframes() / self.framerate
     data = sp.fromstring(waveframes, sp.int16)
+    self.duration = float(wf.getnframes()) / self.framerate
+    if(wf.getnchannels() == 2):
+      left = sp.array([data[i] for i in range(0, data.size, 2)])
+      right = sp.array([data[i] for i in range(1, data.size, 2)])
+      left = sp.int32(left); right = sp.int32(right)
+      data = sp.int16(left+right) / 2
     if(self.fs == None):
       self.fs = self.framerate
     else:
-      data = self.resample(data, data.size*(self.fs/self.framerate))
+      #data = self.resample(data, data.size*(self.fs/self.framerate))
+      data = ssig.decimate(data, int(self.framerate/self.fs))
     self.duration_list = sp.arange(0, self.duration, 1./self.fs)
     data = ssig.detrend(data)
     return data
