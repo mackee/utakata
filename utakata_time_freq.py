@@ -139,7 +139,7 @@ class CutOffNoiseTimeFreqDataHandler(BaseProcessHandler):
       ones_keys = sp.where(diffed == 1)[0]
       minus_keys = sp.where(diffed == -1)[0]
       
-      if(ones_keys.size != 0 or minus_keys.size != 0):
+      if(ones_keys.size != 0 and minus_keys.size != 0):
         if(ones_keys[0] > minus_keys[0]):
           new_line = self.cutNoise(
               (0, minus_keys[0]), noise_length, new_line)
@@ -170,13 +170,13 @@ class CutOffNoiseTimeFreqDataHandler(BaseProcessHandler):
 
 class GradOnPitchTimeFreqDataHandler(BaseProcessHandler):
   """時間周波数データに対するハンドラ - 音程が高くなるにつれて強調する"""
-  def __init__(self, prevHandler, factor):
+  def __init__(self, prevHandler, factor, coef):
     BaseProcessHandler.__init__(self, prevHandler)
-    self.gradTimeFreq(factor)
+    self.gradTimeFreq(factor, coef)
 
-  def gradTimeFreq(self, factor):
+  def gradTimeFreq(self, factor, coef):
     tf = self.time_freq
-    time_freq = [tf[i, :]*(i**(1./factor)) for i in range(sp.shape(tf)[0])]
+    time_freq = [tf[i, :]*(i**(1./factor))*(coef/(i+1)) for i in range(sp.shape(tf)[0])]
     self.time_freq = sp.array(time_freq)
 
 
@@ -218,8 +218,8 @@ class GenerateMMLTimeFreqDataHandler(BaseProcessHandler):
     i = 1
     while(i < sp.shape(target_other)[1]):
       #for c in before_interval:
-      #  target_other[c, i] = 0
-      #  before[c] = 0
+      #  target_other[c-stkey, i] = 0
+      #  before[c-stkey] = 0
       if(sp.array_equal(target_other[:, i], before)):
         plength += 1
         i += 1
@@ -235,9 +235,9 @@ class GenerateMMLTimeFreqDataHandler(BaseProcessHandler):
         interval = self.analysisInterval(freq_data, stkey)
         interval_copy = interval[:]
         #delete overlap element
-        for element in before_interval:
-          if element in interval_copy:
-            interval.remove(element)
+        #for element in before_interval:
+        #  if element in interval_copy:
+        #    interval.remove(element)
         before = target_other[:, i]
         i += window
     return interval_list
