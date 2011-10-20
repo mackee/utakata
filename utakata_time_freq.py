@@ -182,8 +182,11 @@ class GradOnPitchTimeFreqDataHandler(BaseProcessHandler):
 
 class GenerateMMLTimeFreqDataHandler(BaseProcessHandler):
   """時間周波数データに対するハンドラ - MMLデータを生成"""
-  def __init__(self, prevHandler, target='time_freq', window=None, cut_num=40):
+  def __init__(
+      self, prevHandler, target='time_freq',
+      window=None, cut_num=40, output_form='MML'):
     BaseProcessHandler.__init__(self, prevHandler)
+    self.output_form = output_form
     self.genMML(getattr(self, target), window, cut_num)
 
   def genMML(self, target, window, cut_num):
@@ -235,9 +238,9 @@ class GenerateMMLTimeFreqDataHandler(BaseProcessHandler):
         interval = self.analysisInterval(freq_data, stkey)
         interval_copy = interval[:]
         #delete overlap element
-        #for element in before_interval:
-        #  if element in interval_copy:
-        #    interval.remove(element)
+        for element in before_interval:
+          if element in interval_copy:
+            interval.remove(element)
         before = target_other[:, i]
         i += window
     return interval_list
@@ -290,12 +293,17 @@ class GenerateMMLTimeFreqDataHandler(BaseProcessHandler):
         lower = 0
       note_length_pair.append((lower, upper))
         
-
-    note_name = ['16', '16.', '8', '8.', '4', '4.', '2', '2.', '1']
+    if(self.output_form == 'MML'):
+      note_name = ['16', '16.', '8', '8.', '4', '4.', '2', '2.', '1']
+    elif(self.output_form == 'PMX'):
+      note_name = ['1', '1d', '8', '8d', '4', '4d', '2', '2d', '0']
     return (note_name, note_length_pair)
 
   def generateNoteScales(self):
-    scales = ['a', 'a+', 'b', 'c', 'c+', 'd', 'd+', 'e', 'f', 'f+', 'g', 'g+']
+    if(self.output_form == 'MML'):
+      scales = ['a', 'a+', 'b', 'c', 'c+', 'd', 'd+', 'e', 'f', 'f+', 'g', 'g+']
+    elif(self.output_form == 'PMX'):
+      scales = ['a', 'as', 'b', 'c', 'cs', 'd', 'ds', 'e', 'f', 'fs', 'g', 'gs']
     scales = (scales * 9)[:88]
     octaves = []
     for i in range(9):
@@ -305,20 +313,38 @@ class GenerateMMLTimeFreqDataHandler(BaseProcessHandler):
  
   def convertMMLText(self, mml_list):
     text = ''
+    if(self.output_form == 'MML'):
+      octave_character = ('<', '>')
+    elif(self.output_form == 'PMX'):
+      octave_character = ('+', '-')
     now_octave = 3
     for elements in mml_list:
       phoneme = ''
       if(elements[0] == ['r']):
         phoneme = 'r' + elements[1]
       else:
+        length = elements[1]
         for element in elements[0]:
-          if(element[1] < now_octave):
-            phoneme += '<' * (now_octave-element[1])
-            now_octave = element[1]
-          elif(element[1] > now_octave):
-            phoneme += '>' * (element[1]-now_octave)
-            now_octave = element[1]
-          phoneme += element[0] + '0'
-        phoneme = phoneme[:-1] + elements[1]
+          if(self.output_form == 'MML'):
+            if(element[1] < now_octave):
+              phoneme += octave_character[0] * (now_octave-element[1])
+              now_octave = element[1]
+            elif(element[1] > now_octave):
+              phoneme += octave_character[1] * (element[1]-now_octave)
+              now_octave = element[1]
+
+          if(self.output_form == 'MML'):
+            phoneme += element[0] + '0'
+          elif(self.output_form == 'PMX'):
+            phoneme += element[0] + length + str(element[1]+1) + ' z'
+            length = ''
+
+        if(self.output_form == 'MML'):
+          phoneme = phoneme[:-1] + elements[1]
+        elif(self.output_form == 'PMX'):
+          phoneme = phoneme[:-2]
+
       text += phoneme
+      if(self.output_form == 'PMX'):
+        text += ' '
     return text
