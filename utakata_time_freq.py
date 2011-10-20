@@ -1,5 +1,6 @@
 # -*- coding:utf8 -*-
 import scipy as sp
+import numpy as np
 import matplotlib.pyplot as plt
 import scipy.io as sio
 import scipy.linalg as slng
@@ -348,3 +349,45 @@ class GenerateMMLTimeFreqDataHandler(BaseProcessHandler):
       if(self.output_form == 'PMX'):
         text += ' '
     return text
+
+
+class EstimateTempoTimeFreqDataHandler(BaseProcessHandler):
+  """時間周波数データに対するハンドラ - テンポを推定"""
+  def __init__(
+    self, prevHandler, source='time_freq'):
+    BaseProcessHandler.__init__(self, prevHandler)
+    self.estimateTempo(getattr(self, source))
+
+  def estimateTempo(self, source):
+    timedomain = sp.array(
+        [source[:, i].sum() for i in range(sp.shape(source)[1])])
+    self.timedomain = timedomain
+    self.timedomain_time = sp.arange(
+        0, self.duration, float(self.duration)/timedomain.size)
+
+    tempo_scale, tempo_list = self.generateTempoScale()
+    
+    #correlating
+    corr_list = sp.array(
+        [np.correlate(tempo_scale[i], timedomain, 'same').max()
+        for i in range(sp.shape(tempo_scale)[0])])
+    tempo_max = tempo_list[sp.argmax(corr_list)]
+
+    print 'tempo:', tempo_max, 'BPM'
+    self.corr_list = corr_list
+    self.tempo_list = tempo_list
+    self.wavetempo = tempo_max
+
+  def generateTempoScale(self, sttempo=60, endtempo=300, tempo_step=1):
+    fs = self.timedomain.size/self.duration
+    t = sp.arange(0, 60/sttempo, 1/fs)
+    tempo_list = sp.arange(sttempo, endtempo+tempo_step, tempo_step)
+    freq_list = tempo_list / 60.
+
+    tempo_scale = sp.array(
+        [sp.absolute(sp.cos(2*sp.pi*freq*t)) for freq in freq_list])
+    
+    return tempo_scale, tempo_list
+    
+
+ 
