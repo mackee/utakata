@@ -181,99 +181,89 @@ class GradOnPitchTimeFreqDataHandler(BaseProcessHandler):
     self.time_freq = sp.array(time_freq)
 
 
-class GenerateMMLTimeFreqDataHandler(BaseProcessHandler):
+class GenerateScoreTimeFreqDataHandler(BaseProcessHandler):
   """時間周波数データに対するハンドラ - MMLデータを生成"""
   def __init__(
       self, prevHandler, target='time_freq',
-      window=None, cut_num=40, output_form='MML'):
+      cut_num=40, output_form='MML'):
     BaseProcessHandler.__init__(self, prevHandler)
     self.output_form = output_form
-    self.genMML(getattr(self, target), window, cut_num)
 
-  def genMML(self, target, window, cut_num):
-    self.interval_list_left = self.extractPhoneme(target, 0, cut_num, window)
-    self.interval_list_right = self.extractPhoneme(target, cut_num, 88, window)
+    self.left_score = self.generateScore(
+        getattr(self, target)[:cut_num, :], cut_num)
+    self.key_offset = cut_num
+    self.prev_key = []
+    self.right_score = self.generateScore(
+        getattr(self, target)[cut_num:, :], cut_num)
+    try:
+      if(output_form == 'MML'):
+        print self.convertMML(self.left_score)
+        print self.convertMML(self.right_score)
+      elif(output_form == 'PMX'):
+        print self.convertPMX(self.left_score)
+        print self.convertPMX(self.right_score)
+    except TypeError:
+      pass
 
+  def generateScore(self, target, cut_num):
+    fs = self.time_freq_fs = sp.shape(target)[1]  / self.duration
+    noise_length = 60. / self.wavetempo * fs
+    working = sp.copy(target)
+    score = []
+    while(sp.shape(working)[1] > noise_length):
+      cutted, working = self.cutOutToChangingPoint(working)
+      note = self.extractNote(cutted, cut_num)
+      score.append(note)
+    return score
 
-    fs = sp.shape(target)[1] / self.duration
-    self.mml_left = self.convertMMLList(self.interval_list_left, fs)
-    self.mml_right = self.convertMMLList(self.interval_list_right, fs)
-
-    self.mml_text_left = self.convertMMLText(self.mml_left)
-    self.mml_text_right = self.convertMMLText(self.mml_right)
-    print self.mml_text_left
-    print self.mml_text_right
+  def cutOutToChangingPoint(self, working):
+    timedomain = sp.array(
+        [sp.sum(working[:, i]) for i in range(sp.shape(working)[1])])
+    init_data = timedomain[0]
+    try:
+      changing_point = sp.where(timedomain != init_data)[0][0]
+    except IndexError:
+      changing_point = -1
+    cutted = working[:, :changing_point]
+    working = working[:, changing_point:]
     
-  
-  def extractPhoneme(self, target, stkey, endkey, window):
-    target_other = sp.copy(target[stkey:endkey, :])
-    fs = sp.shape(target)[1] / self.duration
-    
-    if(window == None):
-      window = 1
-    else:
-      window = int(self.wavetempo / 60 * window * fs)
-    
-    before = target[:, 0]
-    interval_list = []
-    interval = interval_copy = []
-    before_interval = []
-    plength = 1
-    i = 1
-    while(i < sp.shape(target_other)[1]):
-      #for c in before_interval:
-      #  target_other[c-stkey, i] = 0
-      #  before[c-stkey] = 0
-      if(sp.array_equal(target_other[:, i], before)):
-        plength += 1
-        i += 1
-      else:
-        interval_list.append((interval, plength))
-        before_interval = interval_copy
-        plength = 1
-        freq_data = sp.zeros_like(target_other[:, i])
-        if(i+window > sp.shape(target_other)[1]):
-          window = sp.shape(target_other)[1] - i
-        for j in range(i, i+window):
-          freq_data = sp.logical_or(freq_data, target_other[:, j])
-        interval = self.analysisInterval(freq_data, stkey)
-        interval_copy = interval[:]
-        #delete overlap element
-        for element in before_interval:
-          if element in interval_copy:
-            interval.remove(element)
-        before = target_other[:, i]
-        i += window
-    return interval_list
+    try:
+      for i in self.prev_key:
+        cutted[i, :] = sp.zeros_like(cutted[i, :])
+    except AttributeError:
+      pass
 
+    return cutted, working
 
-  def analysisInterval(self, freq_data, add_num):
-    interval = []
-    for i in range(sp.size(freq_data)):
-      if(freq_data[i] == 1):
-        interval.append(i+add_num)
-    return interval
-  
-  def convertMMLList(self, interval_list, fs):
-    note_name, note_length = self.generateNoteLength(self.wavetempo, fs)
+  def extractNote(self, cutted, cut_num):
+    phonetic = self.calcPhonetic(sp.shape(cutted)[1])
+    chord = self.extractChord(cutted)
+    return (chord, phonetic)
+
+  def calcPhonetic(self, length):
+    note_sample = self.generateNoteLength()
+    for name, length_pair in note_sample:
+      if(length_pair[0] <= length and length < length_pair[1]):
+        return name
+
+  def extractChord(self, cutted):
+    key_list = sp.where(cutted[:, 0] == 1)
+    chord = self.convertToScale(key_list[0])
+    return chord
+
+  def convertToScale(self, key_list):
+    try:
+      key_offset = self.key_offset
+    except AttributeError:
+      key_offset = 0
+
+    self.prev_key = key_list
     note_scales = self.generateNoteScales()
-    mml_list = []
-    for interval in interval_list:
-      for name, length in zip(note_name, note_length):
-        if(interval[1] <= length[1] and interval[1] > length[0]):
-          scales = []
-          for scale in interval[0]:
-            scales.append(note_scales[scale])
-          if scales == []:
-            scales = ['r']
-          mml_list.append((scales, name))
-          break
-    return mml_list
+    chord = [note_scales[i+key_offset] for i in key_list]
+    return chord
       
-
-
-  def generateNoteLength(self, tempo, fs):
-    length = (60. / tempo) * fs
+  def generateNoteLength(self):
+    length = (60. / self.wavetempo) * self.time_freq_fs
     note_length = sp.array([2**i for i in range(5)]) / 4.
     note_length *= length
     note_huten = sp.array(
@@ -298,7 +288,7 @@ class GenerateMMLTimeFreqDataHandler(BaseProcessHandler):
       note_name = ['16', '16.', '8', '8.', '4', '4.', '2', '2.', '1']
     elif(self.output_form == 'PMX'):
       note_name = ['1', '1d', '8', '8d', '4', '4d', '2', '2d', '0']
-    return (note_name, note_length_pair)
+    return zip(note_name, note_length_pair)
 
   def generateNoteScales(self):
     if(self.output_form == 'MML'):
@@ -312,43 +302,38 @@ class GenerateMMLTimeFreqDataHandler(BaseProcessHandler):
     octaves = octaves[10:98]
     return zip(scales, octaves)
  
-  def convertMMLText(self, mml_list):
-    text = ''
-    if(self.output_form == 'MML'):
-      octave_character = ('<', '>')
-    elif(self.output_form == 'PMX'):
-      octave_character = ('+', '-')
+  def convertMML(self, score):
+    mml = ''
     now_octave = 3
-    for elements in mml_list:
-      phoneme = ''
-      if(elements[0] == ['r']):
-        phoneme = 'r' + elements[1]
+
+    for note in score:
+      if(note[0] == []):
+        mml += 'r' + note[1]
       else:
-        length = elements[1]
-        for element in elements[0]:
-          if(self.output_form == 'MML'):
-            if(element[1] < now_octave):
-              phoneme += octave_character[0] * (now_octave-element[1])
-              now_octave = element[1]
-            elif(element[1] > now_octave):
-              phoneme += octave_character[1] * (element[1]-now_octave)
-              now_octave = element[1]
+        for scale in note[0]:
+          if(scale[1] < now_octave):
+            mml += '<' * (now_octave-scale[1])
+            now_octave = scale[1]
+          elif(now_octave < scale[1]):
+            mml += '>' * (scale[1]-now_octave)
+            now_octave = scale[1]
+          mml += scale[0] + '0'
+        mml = mml[:-1] + note[1]
+    return mml
 
-          if(self.output_form == 'MML'):
-            phoneme += element[0] + '0'
-          elif(self.output_form == 'PMX'):
-            phoneme += element[0] + length + str(element[1]+1) + ' z'
-            length = ''
+  def convertPMX(self, score):
+    pmx = ''
 
-        if(self.output_form == 'MML'):
-          phoneme = phoneme[:-1] + elements[1]
-        elif(self.output_form == 'PMX'):
-          phoneme = phoneme[:-2]
-
-      text += phoneme
-      if(self.output_form == 'PMX'):
-        text += ' '
-    return text
+    for note in score:
+      if(note[0] == []):
+        pmx += 'r' + note[1] + ' '
+      else:
+        length = note[1]
+        for scale in note[0]:
+          pmx += scale[0] + length + str(scale[1]) + ' z'
+          length = ''
+        pmx = pmx[:-2] + ' '
+    return pmx
 
 
 class EstimateTempoTimeFreqDataHandler(BaseProcessHandler):
