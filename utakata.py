@@ -34,7 +34,7 @@ class SignalDispatcher(object):
     """入力ハンドラを利用して信号処理する対象の数列データを入力"""
     self.instance = self.__process(self.input_handler)
   
-  @stopwatch
+  #@stopwatch
   def processHandler(self):
     """信号処理ハンドラを逐次実行"""
     for handler in self.process_handler_list:

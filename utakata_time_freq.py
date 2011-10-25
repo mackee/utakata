@@ -288,7 +288,7 @@ class GenerateScoreTimeFreqDataHandler(BaseProcessHandler):
       note_name = ['16', '16.', '8', '8.', '4', '4.', '2', '2.', '1']
     elif(self.output_form == 'PMX'):
       note_name = ['1', '1d', '8', '8d', '4', '4d', '2', '2d', '0']
-    return zip(note_name, note_length_pair)
+    return (note_name, note_length_pair)
 
   def generateNoteScales(self):
     if(self.output_form == 'MML'):

@@ -94,7 +94,7 @@ class WithoutToBiasWavedataHandler(BaseProcessHandler):
     self.data = self.data - sp.sum(self.data[0:100])/100
 
 
-@stopwatch
+#@stopwatch
 class GaborwaveletWavedataHandler(BaseProcessHandler):
   """Wave数列に対するハンドラ - ガボールウェーブレット変換"""
   def __init__(self, prevHandler):
@@ -163,7 +163,7 @@ class GaborwaveletWavedataHandler(BaseProcessHandler):
     
     self.time_freq = scale
 
-@stopwatch
+#@stopwatch
 class EstimateTempoWavedataHandler(BaseProcessHandler):
   """Wave数列に対するハンドラ - テンポを推定する"""
   def __init__( self, prevHandler, target_name='wavecorr',
@@ -192,7 +192,7 @@ class EstimateTempoWavedataHandler(BaseProcessHandler):
       pass
 
 
-@stopwatch
+#@stopwatch
 class CalcCorrWavedataHandler(BaseProcessHandler):
   """Wave数列に対するハンドラ - 自己/相互相関を求める"""
   def __init__( self, prevHandler,
