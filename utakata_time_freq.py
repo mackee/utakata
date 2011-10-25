@@ -297,7 +297,7 @@ class GenerateMMLTimeFreqDataHandler(BaseProcessHandler):
     if(self.output_form == 'MML'):
       note_name = ['16', '16.', '8', '8.', '4', '4.', '2', '2.', '1']
     elif(self.output_form == 'PMX'):
-      note_name = ['1', '1d', '8', '8d', '4', '4d', '2', '2d', '0']
+      note_name = ['1', '1', '8', '8', '4', '4', '2', '2d', '0']
     return (note_name, note_length_pair)
 
   def generateNoteScales(self):
