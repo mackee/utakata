@@ -53,7 +53,7 @@ class PlotTimeFreqDataHandler(BaseProcessHandler):
       plt.xlabel('time[sec]')
     elif(extent == None):
       extent = None
-      plt.xlable('frame')
+      plt.xlabel('frame')
     plt.ylabel('key')
     plt.imshow(source, aspect='auto', origin='lower', extent=extent)
 
