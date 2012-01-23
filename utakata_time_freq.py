@@ -47,13 +47,13 @@ class PlotTimeFreqDataHandler(BaseProcessHandler):
     except AttributeError:
       self.figure = 1
     
+    plt.figure(self.figure)
     if(extent == 'default'):
       extent = [0, self.duration, 0, sp.shape(source)[0]]
       plt.xlabel('time[sec]')
     elif(extent == None):
       extent = None
       plt.xlable('frame')
-    plt.figure(self.figure)
     plt.ylabel('key')
     plt.imshow(source, aspect='auto', origin='lower', extent=extent)
 
