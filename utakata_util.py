@@ -48,4 +48,13 @@ class GenNoteLengthUtilHandler(BaseProcessHandler):
     self.note_name = ['16', '16.', '8', '8.', '4', '4.', '2', '2.' '1']
 
 
+class SelectUtilHandler(BaseProcessHandler):
+  """ユーティリティハンドラ - リストの中から要素を抜き出して別の変数に入れる"""
+  def __init__(self, prevHandler, targets, key, output):
+    BaseProcessHandler.__init__(self, prevHandler)
+    self.selectElement(targets, key, output)
+
+  def selectElement(self, targets, key, output):
+    setattr(self, output, getattr(self, targets)[key])
+    print getattr(self, output)
 

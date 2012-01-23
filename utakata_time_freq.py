@@ -2,6 +2,8 @@
 import scipy as sp
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import cm
+from mpl_toolkits.mplot3d import Axes3D
 import scipy.io as sio
 import scipy.linalg as slng
 
@@ -34,40 +36,80 @@ class BaseProcessHandler:
 
 class PlotTimeFreqDataHandler(BaseProcessHandler):
   """時間周波数データに対するハンドラ - グラフにプロットする"""
-  def __init__(self, prevHandler, source_name='time_freq'):
+  def __init__(self, prevHandler, source_name='time_freq', extent='default'):
     BaseProcessHandler.__init__(self, prevHandler)
     source = getattr(self, source_name)
-    self.plot(source)
+    self.plot(source, extent)
 
-  def plot(self, source):
+  def plot(self, source, extent):
+    try:
+      self.figure += 1
+    except AttributeError:
+      self.figure = 1
+    
+    if(extent == 'default'):
+      extent = [0, self.duration, 0, sp.shape(source)[0]]
+      plt.xlabel('time[sec]')
+    elif(extent == None):
+      extent = None
+      plt.xlable('frame')
+    plt.figure(self.figure)
+    plt.ylabel('key')
+    plt.imshow(source, aspect='auto', origin='lower', extent=extent)
+
+
+class Plot3DTimeFreqDataHandler(BaseProcessHandler):
+  """時間周波数データに対するハンドラ - 3Dグラフにプロットする"""
+  def __init__(self, prevHandler, source='time_freq', extent='default'):
+    BaseProcessHandler.__init__(self, prevHandler)
+    source = getattr(self, source)
+    self.plot3D(source, extent)
+
+  def plot3D(self, source, extent):
     try:
       self.figure += 1
     except AttributeError:
       self.figure = 1
 
-    extent = [0, self.duration, 0, sp.shape(source)[0]]
-    plt.figure(self.figure)
-    plt.ylabel('key')
-    plt.xlabel('time[sec]')
-    plt.imshow(source, aspect='auto', origin='lower', extent=extent)
+    x = sp.arange(0, sp.shape(source)[1])
+    y = sp.arange(0, sp.shape(source)[0])
+    X, Y = sp.meshgrid(x, y)
+    Z = source
+
+    fig = plt.figure(self.figure)
+    ax = Axes3D(fig)
+    ax.plot_surface(X, Y, Z, cmap=cm.jet)
 
 
-class MultipleMatfileAndTimeFreqDataHandler(BaseProcessHandler):
+class MultipleTimeFreqDataHandler(BaseProcessHandler):
+  """時間周波数データに対するハンドラ - 行列と行列との積をとる"""
+  def __init__(self, prevHandler,
+      target, load_matrix, output='multiplied', pinv=False, maximum=None):
+    BaseProcessHandler.__init__(self, prevHandler)
+    self.load_matrix = getattr(self, load_matrix)
+    if(pinv):
+      self.load_matrix = slng.pinv(self.load_matrix)
+    self.multiple(getattr(self, target), output, maximum)
+
+  def multiple(self, target, output, maximum=None):
+    multiplied = sp.dot(self.load_matrix, target)
+    if(maximum != None):
+      multiplied = sp.maximum(multiplied, maximum)
+    setattr(self, output, multiplied)
+
+
+class MultipleMatfileAndTimeFreqDataHandler(MultipleTimeFreqDataHandler):
   """時間周波数データに対するハンドラ - MATLABファイルの行列との積をとる"""
-  def __init__(self, prevHandler, matrix_file, pinv=False, maximum=None):
+  def __init__(self, prevHandler,
+      target, matrix_file, output='multiplied', pinv=False, maximum=None):
     BaseProcessHandler.__init__(self, prevHandler)
     self.importMatrixFile(matrix_file)
     if(pinv):
       self.load_matrix = slng.pinv(self.load_matrix)
-    self.multiple(maximum)
+    self.multiple(getattr(self, target), output, maximum)
 
   def importMatrixFile(self, matrix_file):
     self.load_matrix = sio.loadmat(matrix_file)[matrix_file]
-
-  def multiple(self, maximum=None):
-    self.time_freq = sp.dot(self.load_matrix, self.time_freq)
-    if(maximum != None):
-      self.time_freq = sp.maximum(self.time_freq, maximum)
 
 
 class BinarizeTimeFreqDataHandler(BaseProcessHandler):
@@ -86,16 +128,21 @@ class BinarizeTimeFreqDataHandler(BaseProcessHandler):
 class NormalizeTimeFreqDataHandler(BaseProcessHandler):
   """時間周波数データに対するハンドラ - 正規化をする"""
   def __init__(
-      self, prevHandler, target='time_freq',
+      self, prevHandler, target='time_freq', split=39,
       set_name='time_freq', window=None):
     BaseProcessHandler.__init__(self, prevHandler)
     setattr(
         self, set_name,
-        self.normalize(getattr(self, target), window))
+        self.normalizeLR(getattr(self, target), window, split))
 
-  def normalize(self, target,  window):
+  def normalizeLR(self, target, window, split):
+    leftroll = self.normalize(target[:split, :], window)
+    rightroll = self.normalize(target[split:, :], window)
+    return sp.r_[leftroll, rightroll]
+
+  def normalize(self, target, window):
     if(window == None):
-      return self.time_freq / self.time_freq.max()
+      return target / target.max()
     
     else:
       if(window <= 1):
@@ -108,7 +155,7 @@ class NormalizeTimeFreqDataHandler(BaseProcessHandler):
       for i in range(0, sp.shape(normalized)[1], int(window_data)):
         max_value = normalized[:, i:i+window_data].max()
         normalized[:, i:i+window_data] /= max_value
-      
+
       return normalized
  
 
@@ -123,12 +170,12 @@ class LogTimeFreqDataHandler(BaseProcessHandler):
 
 class CutOffNoiseTimeFreqDataHandler(BaseProcessHandler):
   """時間周波数データに対するハンドラ - テンポ情報をもとにノイズ除去"""
-  def __init__(self, prevHandler, minnotel=1./4.):
+  def __init__(self, prevHandler, source='binarized', output='antinoised', minnotel=1./4.):
     BaseProcessHandler.__init__(self, prevHandler)
-    self.scanSound(minnotel)
+    setattr(self, output, self.scanSound(getattr(self, source), minnotel))
 
-  def scanSound(self, minnotel):
-    binarized = self.binarized_data
+  def scanSound(self, source, minnotel):
+    binarized = source
     scale = 60. / self.wavetempo * (binarized[0].size / self.duration)
     noise_length = scale*minnotel
 
@@ -157,7 +204,7 @@ class CutOffNoiseTimeFreqDataHandler(BaseProcessHandler):
 
         antinoised[i, :] = new_line
 
-    self.antinoised = antinoised
+    return antinoised
 
 
   def cutNoise(self, keys, noise_length, line):
@@ -179,6 +226,22 @@ class GradOnPitchTimeFreqDataHandler(BaseProcessHandler):
     tf = self.time_freq
     time_freq = [tf[i, :]*(i**(1./factor))*(coef/(i+1)) for i in range(sp.shape(tf)[0])]
     self.time_freq = sp.array(time_freq)
+
+
+class EmphasizePitchTimeFreqDataHandler(BaseProcessHandler):
+  def __init__(self, prevHandler, target, emrange, factor, output):
+    BaseProcessHandler.__init__(self, prevHandler)
+    target = getattr(self, target)
+    if len(emrange) == 2:
+      emrange = (emrange[0], emrange[1], 0, target.shape[1])
+    emphasized = self.emphasizePitch(target, emrange, factor)
+    setattr(self, output, emphasized)
+
+  def emphasizePitch(self, target, emrange, factor):
+    target[emrange[0]:emrange[1], :] = target[
+        emrange[0]:emrange[1], emrange[2]:emrange[3]
+      ] * factor
+    return target
 
 
 class GenerateScoreTimeFreqDataHandler(BaseProcessHandler):
@@ -373,6 +436,407 @@ class EstimateTempoTimeFreqDataHandler(BaseProcessHandler):
         [sp.absolute(sp.cos(2*sp.pi*freq*t)) for freq in freq_list])
     
     return tempo_scale, tempo_list
-    
-
  
+
+class AverageTimeFreqDataHandler(BaseProcessHandler):
+  """時間周波数データに対するハンドラ - 平均をとる"""
+  def __init__(
+    self, prevHandler, source='time_freq', output='averaged'):
+    BaseProcessHandler.__init__(self, prevHandler)
+    self.averageTimeFreq(getattr(self, source), output)
+
+  def averageTimeFreq(self, source, output):
+    line_average = sp.zeros((88, 1))
+    for i in range(sp.shape(source)[0]):
+      line_average[i][0] = sp.average(source[:][i])
+    setattr(self, output, line_average)
+ 
+
+class SaveMatfileTimeFreqDataHandler(BaseProcessHandler):
+  """時間周波数データに対するハンドラ - Matfileに行列を保存する"""
+  def __init__(
+    self, prevHandler, source, filename):
+    BaseProcessHandler.__init__(self, prevHandler)
+    self.saveMatfile(getattr(self, source), filename)
+
+  def saveMatfile(self, source, filename):
+    sio.savemat(filename+'.mat', {filename: source}, oned_as='row')
+
+
+class SelectTimeDomainTimeFreqDataHandler(BaseProcessHandler):
+  """時間周波数データに対するハンドラ - 任意の時刻での周波数特性を取り出す"""
+  def __init__(
+    self, prevHandler, source, key, output):
+    BaseProcessHandler.__init__(self, prevHandler)
+    if 'best' == key:
+      key = self.best[0]
+    self.selectTimeDomain(getattr(self, source), output, key)
+
+  def selectTimeDomain(self, source, output, key):
+    print sp.shape(source[:, key])
+    setattr(self, output, source[:, key])
+
+
+class SelectMostFlatTimeFreqDataHandler(BaseProcessHandler):
+  """時間周波数データに対するハンドラ - 掛けたときに最も平坦となるような周波数特性を取り出す"""
+  def __init__(
+      self, prevHandler, source, output):
+    BaseProcessHandler.__init__(self, prevHandler)
+    self.selectMostFlatData(getattr(self, source), output)
+
+  def selectMostFlatData(self, source, output):
+    best = self.scanMostFlatData(source)
+    setattr(self, output, best)
+
+  def scanMostFlatData(self, source):
+    best = (0, 1) # (フレーム, diff of factor)
+    for i in range(sp.shape(source)[0]):
+      factor = self.calcFlatFactor(source, i)
+      if 1 < factor:
+        diff = factor - 1
+      else:
+        diff = 1 - factor
+      if best[1] > diff:
+        best = (i, diff)
+        print best
+
+    return best
+
+  def calcFlatFactor(self, source, frame):
+    """ 平坦かどうかの指数を算出
+      :param source: 時間周波数データ n x 88
+      :param frame: 用いる時間上の周波数特性
+    """
+    invframe = 1 / source[:, frame]
+    invframe = invframe[:, sp.newaxis]
+    calculated = source * invframe
+    factor = sp.average(calculated)
+
+    return factor
+
+
+class NoteOnOffTimeFreqDataHandler(BaseProcessHandler):
+  """NoteON, NoteOFFを検出"""
+  def __init__(self, prevHandler, source='binarized', output='notes'):
+    """constructor at ImportWaveHandler."""
+    BaseProcessHandler.__init__(self, prevHandler)
+    notes = self.noteOnOff(getattr(self, source))
+    setattr(self, output, notes)
+
+  def noteOnOff(self, source):
+    notes = sp.zeros((10000, 5))
+    nlistnum = 0
+    for n in range(1, sp.shape(source)[0]):
+      beforestate = source[n, 0]
+      bssample = 1
+      for k in range(1, sp.shape(source)[1]):
+        if beforestate != source[n, k]:
+          notes[nlistnum, 0] = bssample
+          notes[nlistnum, 1] = k-1
+          notes[nlistnum, 2] = n
+          notes[nlistnum, 3] = notes[nlistnum, 1] - notes[nlistnum, 0] + 1
+          notes[nlistnum, 4] = beforestate
+          beforestate = source[n, k]
+          bssample = k
+          nlistnum += 1
+   
+    self.nlistnum = nlistnum - 1
+    return notes[:nlistnum+2, :]
+
+
+# NoteListのため分離予定
+class AntinoiseNoteListHandler(BaseProcessHandler):
+  """NotesListへの加工 - ノイズ除去"""
+  def __init__(self, prevHandler, source='notes', output='antinoised'):
+    BaseProcessHandler.__init__(self, prevHandler)
+    antinoised = self.antinoise(getattr(self, source))
+    setattr(self, output, antinoised)
+
+  def antinoise(self, source):
+    notes = source
+    minnotel = 1./4.
+    self.minnotel = minnotel
+    shibu = 60. / self.wavetempo * (self.binarized_data[0].size / self.duration)
+    self.shibu = shibu
+    noiselen = shibu*minnotel
+    # d = 10 sampling間隔
+    #shibu = (self.fs/self.sample_duration) / (self.wavetempo/60.)
+    # minnotel = 1/4 4分音符の1/4 = 16分音符で採譜
+    #noiselen = (shibu*1./4.)
+    
+    k = 0
+    while k <= self.nlistnum:
+      if notes[k, 2] != notes[k+1, 2]:
+        if notes[k, 3] < noiselen:
+          notes = sp.r_[notes[0:np.max(k-1, 0), :], notes[k+1:, :]]
+      
+      if (notes[k, 0] != 0) & (notes[k, 2] == notes[k+2, 2]):
+        if notes[k+1, 3] < noiselen:
+          notes[k, 1] = notes[k+2, 1]
+          notes[k, 3] = notes[k, 1] - notes[k, 0] + 1
+          notes = sp.r_[notes[:k, :], notes[k+3:, :]]
+          k -= 1
+
+      self.nlistnum = sp.shape(notes)[0] - 4
+      k += 1
+    
+    return notes[:self.nlistnum, :]
+
+
+class CreateOnNoteListHandler(BaseProcessHandler):
+  """NoteListへの加工 - NoteOn Listの作成"""
+  def __init__(self, prevHandler, source='antinoised', output='noteOns'):
+    BaseProcessHandler.__init__(self, prevHandler)
+    noteOns = self.noteOnList(getattr(self, source))
+    setattr(self, output, noteOns)
+
+  def noteOnList(self, source):
+    antinoised = source
+    noteOnCount = 0
+    noteOnList = sp.zeros((sp.sum(antinoised[:, 4], axis=0), 4))
+    for k in range(self.nlistnum):
+      if antinoised[k, 4] == 1:
+        noteOnList[noteOnCount, 0:4] = antinoised[k, 0:4]
+        noteOnCount += 1
+    self.noteOnCount = noteOnCount - 1
+
+    return noteOnList
+
+
+class CreatePianorollTimeFreqDataHandler(BaseProcessHandler):
+  """時間周波数データに対するハンドラ - ピアノロールの作成"""
+  def __init__(
+      self, prevHandler, size, note_on='noteOns',
+      output='pianoroll'):
+    BaseProcessHandler.__init__(self, prevHandler)
+    if size == 'fixToResolution':
+      size = (88, max(self.fixToResolution[:, 1]))
+      note_on = 'fixToResolution'
+    else:
+      size = sp.shape(getattr(self, size))
+    pianoroll = self.createPianoroll(size, getattr(self, note_on))
+    setattr(self, output, pianoroll)
+
+  def createPianoroll(self, size, noteOns):
+    pianoroll = sp.zeros(size)
+
+    for k in range(self.noteOnCount):
+      noteNo = noteOns[k, 2]
+      noteON = noteOns[k, 0]
+      #noteOFF = noteOns[k, 1]
+      noteONTime = noteOns[k, 3]
+      pianoroll[noteNo, noteON:noteON+noteONTime] = sp.ones(1, noteONTime)
+
+    return pianoroll
+
+
+class DeleteSilentNoteListHandler(BaseProcessHandler):
+  """NoteListへの加工 - 無音部分を削除する"""
+  def __init__(self, prevHandler,
+      antinoised='antinoised', note_on='noteOns', output='deleteSilents'):
+    BaseProcessHandler.__init__(self, prevHandler)
+    noteOns = self.deleteSilent(
+        getattr(self, antinoised), getattr(self, note_on))
+    #setattr(self, output, deleteSilents)
+    setattr(self, note_on, noteOns)
+
+  def deleteSilent(self, antinoised, noteOns):
+    """
+    noiseCutSumVector = sp.sum(antinoised, axis=0)
+    for k in range(len(noiseCutSumVector)):
+      if k != 0:
+        startSamp = k
+        break
+    deleteSilents = antinoised[:, startSamp:]
+    noteOns[0:self.noteOnCount, 0:1] = noteOns[0:self.noteOnCount, 0:1] - startSamp + 1
+    """
+    noteOns = noteOns[sp.where(noteOns[:, 3] > 0), :][0]
+
+    return noteOns
+
+
+class NormalizeLengthNoteListHandler(BaseProcessHandler):
+  """NoteListへの加工 - 音符の正規化"""
+  def __init__(self, prevHandler, note_on='noteOns', output='fixToResolution', factor=0):
+    BaseProcessHandler.__init__(self, prevHandler)
+    fixToResolution = self.normalizeLength(getattr(self, note_on), factor)
+    setattr(self, output, fixToResolution)
+
+  def normalizeLength(self, noteOns, factor):
+    #shibu = 60. / self.wavetempo * (self.binarized_data[0].size / self.duration)
+    shibu = (self.fs/10.) / (self.wavetempo/60.)
+    fixToResolution = noteOns/shibu*480.
+    fixToResolution[:, 2] = noteOns[:, 2]
+    # MIDI_Res(分解能) = 480
+    MIDI_Res = 480.
+    minnotel = 1./4.*MIDI_Res
+    #rate(許容誤差)
+    rate = 0.5
+
+    #NoteNoが大きいものから順に並び替え
+    fixToResolution = self.rowsort(fixToResolution)
+    self.oldFixToResolution = sp.copy(fixToResolution)
+
+    #lilypond符号用リスト
+    book = [[] for i in range(fixToResolution.shape[0])]
+
+    for n in range(fixToResolution.shape[0]):
+      x_cor = fixToResolution[n, 0] + minnotel*rate - 1
+
+      #x_cor = fixToResolution[n, 0] + minnotel - 1
+      x_cor = (sp.floor(x_cor/minnotel))*minnotel
+      if(x_cor == 0):
+        x_cor = 1
+      fixToResolution[n, 0] = x_cor
+      fixToResolution[n, 3], book[n] = self.normalizeNoteLength(fixToResolution[n, 3] + factor)
+      book[n] = self.convertNoteNo(fixToResolution[n, 2]) + book[n]
+      fixToResolution[n, 1] = fixToResolution[n, 3] + fixToResolution[n, 0] - 1
+    
+    self.book = book
+    return fixToResolution
+
+  def rowsort(self, a):
+    result = [[] for i in range(88)]
+    #同NoteNoで分割
+    for column in a:
+      result[int(column[2])].append([c for c in column])
+    result = [sp.array(r) for r in result if r != []]
+    #NoteNo内でソート
+    result = [r[sp.argsort(r[:, 0])[::-1], :] for r in result]
+    
+    arr = []
+    #元の形式に戻す
+    for r in result:
+      for phenome in r:
+        arr.append(phenome)
+    arr = sp.array(arr, dtype=int)[::-1, :]
+    return arr
+
+  def normalizeNoteLength(self, length):
+    nlen = 0
+    ov_len = 0
+    rhythm = 0
+    if length > 1920:
+      ov_len = sp.floor(length/1920.)
+      length = sp.mod(length, 1920)
+
+    len_table = [
+        [0],      # 無音
+        #[20],     # 64分3連
+        [30],     # 64分
+        #[40],     # 32分3連
+        [45],     # 付点64分
+        [60],     # 32分
+        #[80],     # 16分3連
+        [90],     # 付点32分
+        [120],    # 16分
+        #[160],    # 8分3連
+        [180],    # 付点16分
+        [240],    # 8分
+        #[320],    # 4分3連
+        [360],    # 付点8分
+        [480],    # 4分
+        #[640],    # 2分3連
+        [720],    # 付点4分
+        [960],    # 2分
+        #[1280],   # 全音3連
+        [1440],   # 付点2分
+        [1920],   # 全音符
+    ]
+
+    rhythms = [
+        [],      # 無音
+        #[],     # 64分3連
+        ['64'],     # 64分
+        #[],     # 32分3連
+        ['64.'],     # 付点64分
+        ['32'],     # 32分
+        #[],     # 16分3連
+        ['32.'],     # 付点32分
+        ['16'],    # 16分
+        #[],    # 8分3連
+        ['16.'],    # 付点16分
+        ['8'],    # 8分
+        #[],    # 4分3連
+        ['8.'],    # 付点8分
+        ['4'],    # 4分
+        #[],    # 2分3連
+        ['4.'],    # 付点4分
+        ['2'],    # 2分
+        #[],   # 全音3連
+        ['2.'],   # 付点2分
+        ['1'],   # 全音符
+    ]
+
+    if length != 0: # <-  if len = n*1920 (n = 1, 2, …) DO NOT calc
+      for k in range(1, len(len_table)):
+        if length > len_table[k-1]:
+          if length <= len_table[k]:
+            nlen = len_table[k][0]
+            rhythm = rhythms[k][0]
+    nlen = nlen + ov_len*1920
+
+    return nlen, rhythm
+
+  def convertNoteNo(self, noteNo):
+    pitches = [
+      'a,,,,', 'ais,,,,', 'b,,,,',
+      'c,,,', 'cis,,,', 'd,,,', 'dis,,,', 'e,,,', 'f,,,',
+      'fis,,,', 'g,,,', 'gis,,,', 'a,,,', 'ais,,,', 'b,,,',
+      'c,,', 'cis,,', 'd,,', 'dis,,', 'e,,', 'f,,',
+      'fis,,', 'g,,', 'gis,,', 'a,,', 'ais,,', 'b,,',
+      'c,', 'cis,', 'd,', 'dis,', 'e,', 'f,', 'fis,', 'g,', 'gis,', 'a,', 'ais,', 'b,',
+      'c', 'cis', 'd', 'dis', 'e', 'f', 'fis', 'g', 'gis', 'a', 'ais', 'b',
+      'c\'', 'cis\'', 'd\'', 'dis\'', 'e\'', 'f\'',
+      'fis\'', 'g\'', 'gis\'', 'a\'', 'ais\'', 'b\'',
+      'c\'\'', 'cis\'\'', 'd\'\'', 'dis\'\'', 'e\'\'', 'f\'\'',
+      'fis\'\'', 'g\'\'', 'gis\'\'', 'a\'\'', 'ais\'\'', 'b\'\'',
+      'c\'\'\'', 'cis\'\'\'', 'd\'\'\'', 'dis\'\'\'', 'e\'\'\'', 'f\'\'\'',
+      'fis\'\'\'', 'g\'\'\'', 'gis\'\'\'', 'a\'\'\'', 'ais\'\'\'', 'b\'\'\'', 'c\'\'\'\'',
+    ]
+
+    return pitches[noteNo]
+
+
+class ToLilyPondNoteListHandler(BaseProcessHandler):
+  def __init__(self, prevHandler, book='book', note_on='fixToResolution', split=39):
+    BaseProcessHandler.__init__(self, prevHandler)
+    book = getattr(self, book)
+    noteOns = getattr(self, note_on)
+
+    LRCount  = self.splitLR(book, noteOns, split)
+    print '\\version "2.14.2"'
+    print '{'
+    print '<<'
+    print '\\new Staff {\\clef "treble"', 
+    rlytext = self.liliezd(book[:LRCount-1], noteOns[:LRCount-1])
+    print rlytext, '}'
+
+    print '\\new Staff {\\clef "bass"', 
+    llytext = self.liliezd(book[LRCount:], noteOns[LRCount:])
+    print llytext, '}'
+    print '>>'
+    print '}'
+
+  def liliezd(self, book, noteOns):
+    book = sp.array(book)
+    # 時間軸上で整列させたインデックス
+    l = sp.argsort(noteOns[:, 0])
+    timebook = book[l]
+
+    lytext = ''
+    for phenome in timebook:
+      #if phenome != '[]':
+      lytext += phenome + ' '
+
+    return lytext
+
+  def splitLR(self, book, noteOns, split):
+    LRSCount = 0
+    for k in range(self.noteOnCount):
+      if noteOns[k, 2] < split:
+        LRSCount = k
+        break
+
+    return LRSCount
+
