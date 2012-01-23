@@ -238,7 +238,7 @@ class EmphasizePitchTimeFreqDataHandler(BaseProcessHandler):
     setattr(self, output, emphasized)
 
   def emphasizePitch(self, target, emrange, factor):
-    target[emrange[0]:emrange[1], :] = target[
+    target[emrange[0]:emrange[1], emrange[2]:emrange[3]] = target[
         emrange[0]:emrange[1], emrange[2]:emrange[3]
       ] * factor
     return target
