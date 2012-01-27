@@ -58,6 +58,14 @@ class PlotTimeFreqDataHandler(BaseProcessHandler):
     plt.imshow(source, aspect='auto', origin='lower', extent=extent)
 
 
+class SavePlotTimeFreqDataHandler(PlotTimeFreqDataHandler):
+  """時間周波数データに対するハンドラ - グラフを画像に保存する"""
+  def __init__(self, prevHandler, savefile, source_name='time_freq', extent='default'):
+    PlotTimeFreqDataHandler.__init__(self, prevHandler, source_name, extent)
+    plt.savefig(savefile, dpi=72)
+    plt.delaxes()
+
+
 class Plot3DTimeFreqDataHandler(BaseProcessHandler):
   """時間周波数データに対するハンドラ - 3Dグラフにプロットする"""
   def __init__(self, prevHandler, source='time_freq', extent='default'):
