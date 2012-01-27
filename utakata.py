@@ -29,12 +29,6 @@ class SignalDispatcher(object):
     self.input_handler = input_handler
     self.process_handler_list = process_handler_list
     self.option = option
-    try:
-      if self.option['gui'] == None:
-        import matplotlib
-        matplotlib.use('Agg')
-    except:
-      pass
 
   def importHandler(self):
     """入力ハンドラを利用して信号処理する対象の数列データを入力"""
